@@ -1,0 +1,15 @@
+body {
+  padding: 50px;
+  font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+  background: black;
+}
+
+#canvas {
+  position: absolute;
+  z-index: 10;
+}
+
+#video {
+  position: absolute;
+  z-index: 1;
+}
