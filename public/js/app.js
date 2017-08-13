@@ -1,21 +1,4 @@
 function appCanvas(canvas, video) {
-  const ctx = canvas.getContext('2d');
-  const back = document.createElement('canvas');
-  const backcontext = back.getContext('2d');
-
-  const context = new (window.AudioContext || window.webkitAudioContext)();
-  const tuna = new Tuna(context);
-  const bitcrusher = new tuna.Bitcrusher();
-  const gainNode = context.createGain();
-  
-  gainNode.gain.value = 1;              
-  bitcrusher.bypass = 1;
-
-  const source = context.createMediaElementSource(video);
-  source.connect(gainNode);
-  gainNode.connect(bitcrusher);
-  bitcrusher.connect(context.destination);
-
   const settings = {
     rotation: 0,
     clicked: false,
@@ -25,40 +8,66 @@ function appCanvas(canvas, video) {
     }
   };
 
+  const ctx = canvas.getContext('2d');
+  const back = document.createElement('canvas');
+  const backcontext = back.getContext('2d');
+
+  const context = new (window.AudioContext || window.webkitAudioContext)();
+  const dryGain = context.createGain();
+  const wetGain = context.createGain();
+  const tuna = new Tuna(context);
+  const bitcrusher = new tuna.Bitcrusher();
+  const source = context.createMediaElementSource(video);
+
+  dryGain.gain.value = 1;
+  wetGain.gain.value = 0;
+
+  source.connect(dryGain);
+  dryGain.connect(context.destination);
+
+  source.connect(bitcrusher);
+  bitcrusher.connect(wetGain);
+  wetGain.connect(context.destination);
+
   video.addEventListener('loadedmetadata', loadMetadata);
   video.addEventListener('play', draw);
 
-  canvas.addEventListener('click', click);
   canvas.addEventListener('mousedown', mouseDown);
   canvas.addEventListener('touchstart', mouseDown);
-  canvas.addEventListener('mousemove', mouseMove);
-  canvas.addEventListener('touchmove', mouseDown);
   canvas.addEventListener('mouseup', mouseUp);
   canvas.addEventListener('touchend', mouseDown);
+  canvas.addEventListener('mousemove', mouseMove);
+  canvas.addEventListener('touchmove', mouseDown);
 
   function loadMetadata() {
     canvas.width = back.width = video.videoWidth;
     canvas.height = back.height = video.videoHeight;
   }
 
-  function updateBitcrusher() {
+  function updateAudioFx() {
     if (settings.clicked) {
-      bitcrusher.bypass = 0;// - ( settings.clickPos.x * settings.clickPos.y );
       bitcrusher.bits = 16 - ( ( ( settings.clickPos.x * 16 ) % 8 ) + 4 );
       bitcrusher.normfreq = settings.clickPos.y;
-      bitcrusher.bufferSize = ( settings.clickPos.x * settings.clickPos.y * 16384 ) + 256;  //256 to 16384
-    }
-    else {
-      bitcrusher.bypass = 1;
     }
   }
 
   function mouseDown(e) {
+    settings.rotation += 1;
     settings.clicked = true;
     settings.clickPos.x = e.clientX / canvas.height;
     settings.clickPos.y = e.clientY / canvas.width;
 
-    updateBitcrusher();
+    wetGain.gain.setTargetAtTime(1, context.currentTime, 0.015);
+    dryGain.gain.setTargetAtTime(0, context.currentTime, 0.015);
+    updateAudioFx();
+  }
+
+  function mouseUp(e) {
+    settings.clicked = false;
+    
+    wetGain.gain.setTargetAtTime(0, context.currentTime, 0.015);
+    dryGain.gain.setTargetAtTime(1, context.currentTime, 0.015);
+    updateAudioFx();
   }
 
   function mouseMove(e) {
@@ -67,17 +76,7 @@ function appCanvas(canvas, video) {
     settings.clickPos.x = e.clientX / canvas.height;
     settings.clickPos.y = e.clientY / canvas.width;
 
-    updateBitcrusher();
-  }
-
-  function mouseUp(e) {
-    settings.clicked = false;
-    
-    updateBitcrusher();
-  }
-
-  function click(e) {
-    settings.rotation += 1;
+    updateAudioFx();
   }
 
   function convertPixelData(pixelData) {
